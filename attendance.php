@@ -4,7 +4,7 @@ include 'envconfig.php';
 
 use Rats\Zkteco\Lib\ZKTeco;
 
-$ip = '192.168.68.129';
+$ip = '192.168.68.102';
 $port = 4370;
 
 $zk = new ZKTeco($ip, $port);
@@ -20,6 +20,9 @@ try {
         $attendanceData = $zk->getAttendance();
         $fileContent = "$current_time_formatted (success) : Attendance is being fetched from the machine.\n";
 
+        $attPath = getenv('project_dir') . "/att.txt";
+        file_put_contents($attPath, json_encode($attendanceData, JSON_PRETTY_PRINT));
+
         if (empty($attendanceData)) {
             $fileContent .= "$current_time_formatted (success): No attendance data found.\n";
         } else {
@@ -27,8 +30,17 @@ try {
                 $apiUrl = getenv('attendance_dev_api');
                 $curl = curl_init($apiUrl);
                 curl_setopt($curl, CURLOPT_POST, true);
-                curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query(['attendance' => $attendanceData]));
                 curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
+
+                // if large file
+                curl_setopt($curl, CURLOPT_HTTPHEADER, ['Content-Type: multipart/form-data']);
+                $postFields = [
+                    'file' => new CURLFile($attPath, 'application/json', 'attendance.json')
+                ];
+                curl_setopt($curl, CURLOPT_POSTFIELDS, $postFields);
+
+                // curl_setopt($curl, CURLOPT_POSTFIELDS, http_build_query(['attendance' => $attendanceData]));
+                // curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
                 $response1 = curl_exec($curl);
                 $fileContent .= "$current_time_formatted (dev response) : $response1 \n";
                 curl_close($curl);
