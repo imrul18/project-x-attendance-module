@@ -4,7 +4,7 @@ include 'envconfig.php';
 
 use Rats\Zkteco\Lib\ZKTeco;
 
-$ip = '192.168.68.102';
+$ip = '192.168.68.100';
 $port = 4370;
 
 $zk = new ZKTeco($ip, $port);
