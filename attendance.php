@@ -4,6 +4,29 @@ include 'envconfig.php';
 
 use Rats\Zkteco\Lib\ZKTeco;
 
+/**
+ * @param  array<int, array<string, mixed>>  $attendanceData
+ */
+function postAttendancePayload(string $apiUrl, array $attendanceData): string
+{
+    $curl = curl_init($apiUrl);
+
+    curl_setopt_array($curl, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/json',
+            'Accept: application/json',
+        ],
+        CURLOPT_POSTFIELDS => json_encode($attendanceData),
+    ]);
+
+    $response = curl_exec($curl);
+    curl_close($curl);
+
+    return $response !== false ? $response : '';
+}
+
 $ip = getenv('machine_ip');
 $port = getenv('machine_port');
 
@@ -39,41 +62,17 @@ try {
             $fileContent .= "$current_time_formatted (success): No attendance data found.\n";
         } else {
             if (getenv('attendance_dev_api') && getenv('attendance_dev_api') !== '') {
-                $apiUrl = getenv('attendance_dev_api');
-                $curl = curl_init($apiUrl);
-                curl_setopt($curl, CURLOPT_POST, true);
-                curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-
-                // if large file
-                curl_setopt($curl, CURLOPT_HTTPHEADER, ['Content-Type: multipart/form-data']);
-                $postFields = [
-                    'file' => new CURLFile($attPath, 'application/json', 'attendance.json')
-                ];
-                curl_setopt($curl, CURLOPT_POSTFIELDS, $postFields);
-
-                $response1 = curl_exec($curl);
+                $response1 = postAttendancePayload(getenv('attendance_dev_api'), $attendanceData);
                 $fileContent .= "$current_time_formatted (dev response) : $response1 \n";
-                curl_close($curl);
             }
 
-            if (getenv('attendance_production_api') && getenv('attendance_production_api') != '') {
-                $apiUrl = getenv('attendance_production_api');
-                $curl = curl_init($apiUrl);
-                curl_setopt($curl, CURLOPT_POST, true);
-                curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
-
-                // if large file
-                curl_setopt($curl, CURLOPT_HTTPHEADER, ['Content-Type: multipart/form-data']);
-                $postFields = [
-                    'file' => new CURLFile($attPath, 'application/json', 'attendance.json')
-                ];
-                curl_setopt($curl, CURLOPT_POSTFIELDS, $postFields);
-
-                $response2 = curl_exec($curl);
-                $fileContent .= "$current_time_formatted (zone response) : $response2";
-                curl_close($curl);
-
-                $zk->clearAttendance();
+            $productionApis = getenv('attendance_production_api');
+            if ($productionApis && $productionApis !== '') {
+                foreach (array_filter(array_map('trim', explode(',', $productionApis))) as $productionApi) {
+                    $response2 = postAttendancePayload($productionApi, $attendanceData);
+                    $fileContent .= "$current_time_formatted (zone response) [$productionApi] : $response2 \n";
+                }
+                // $zk->clearAttendance();
             }
         }
 
